@@ -4,33 +4,32 @@ public with sharing class MaintenanceRequestHelper {
         List<Id> casesToWorkOn=new List<Id>();
         
         for(Case c:listOfCases){
-            if(c.Type.equals('Reapair') or c.Type.equals('Maintenance Request') and c.IsClosed){
+            if(c.Type.equals('Reapair') || c.Type.equals('Maintenance Request') && c.IsClosed){
                 casesToWorkOn.add(c.Id);
             }
         }
         
         if(!casesToWorkOn.isEmpty()){
             List<Case> newCases = new List<Case>();
-            Map<Id, Case> cCases = new Map<Id,Case>(
-                [SELECT Id, Vehicle__c, Equipment__c, Equipment__r.Maintenance_Cycle__c,
-                (SELECT Id, Equipment__c, Quantity__c 
-                FROM Equipment_Maintenance_Items__r) 
-                FROM Case WHERE Id IN :listofId]);
+            Map<Id, Case> cCases = new Map<Id,Case>([SELECT Id, Vehicle__c, ProductId, ParentId__r.Maintenance_Cycle__c,(SELECT Id, Equipment__c, Quantity__c 
+            FROM Equipment_Maintenance_Items__r) 
+               FROM Case WHERE Id IN :casesToWorkOn]);
+
                          
-            Map<Id,Decimal> mtCycles=new Map<Id, Decimal>;
+            Map<Id,Decimal> mtCycles=new Map<Id, Decimal>();
 
             AggregateResult[] results = [SELECT Maintenance_Request__c, MIN(Equipment__r.Maintenance_Cycle__c)cycle 
-            FROM Equipment_Maintenance_Item__c WHERE Maintenance_Request__c IN :listofId GROUP BY Maintenance_Request__c];
+            FROM Equipment_Maintenance_Item__c WHERE Maintenance_Request__c IN :casesToWorkOn GROUP BY Maintenance_Request__c];
             for(AggregateResult j : results){
                 mtCycles.put((Id) j.get('Maintenance_Request__c'), (Decimal) j.get('cycle'));
             }
             for(Case k:cCases.values()){
                 Case createCase=new Case(Status='New', ParentId=k.Id, Subject='Routine Maintenance',
-                Type='Routine Maintenance', Vehicle__c=k.Vehicle__c, Equipment__c=k.Equipment__c,
-                Origin='Web', Date_Reported__c=Date.Today();
-                )
+                Type='Routine Maintenance', Vehicle__c=k.Vehicle__c, ProductId=k.ProductId,
+                Origin='Web', Date_Reported__c=Date.Today());
+                
                 If(mtCycles.containskey(k.Id)){
-                    createCase.Date.Due__c=Date.Today().addDays((Integer)mtCycles.get(k.Id));
+                    createCase.Date_Due__c=Date.Today().addDays((Integer)mtCycles.get(k.Id));
                 }
                 newCases.add(createCase);
             }
